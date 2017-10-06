@@ -1,15 +1,49 @@
-export default class User {
-    constructor(name, username, email){
-        this.name = name;
-        this.username = username;
-        this.email = email;
-    }
+import mongoose, { Schema } from 'mongoose';
+import bcrypt from 'bcrypt';
 
-    getUsername(){
-        return this.username;
-    }
+const SALT_WORK_FACTOR = 10;
 
-    getName(){
-        return this.name;
+const UserSchema = new Schema({
+    username: { type: String, required: true, index: { unique: true }, maxlength: 25  },
+    email: { type: String, required: true, index: { unique: true }},
+    password: { type: String, required: true },
+    admin: Boolean,
+    owner: Boolean,
+    dateAdded: { type: Date, default: Date.now, required: true },
+});
+
+UserSchema.pre('save', function(next) {
+    let user = this;
+    
+    // only hash the password if it has been modified (or is new)
+    if (!user.isModified('password')) {
+        return next();
     }
-}
+    
+    // generate a salt
+    bcrypt.genSalt(SALT_WORK_FACTOR, function(err, salt) {
+        if (err) return next(err);
+  
+        // hash the password using our new salt
+        bcrypt.hash(user.password, salt, function(err, hash) {
+            if (err) {
+                return next(err);
+            }
+  
+            // override the cleartext password with the hashed one
+            user.password = hash;
+            next();
+        });
+    });
+});
+
+UserSchema.methods.comparePassword = function(candidatePassword, cb){
+    let user = this;
+    bcrypt.compare(candidatePassword, user.password, (err, isMatch) => {
+        if (err) return cb(err);
+        
+        cb(null, isMatch);
+    });
+};
+
+export default mongoose.model('User', UserSchema);
