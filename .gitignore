@@ -1,3 +1,9 @@
 node_modules
 dist
-src/controllers/post.controller.js
+src/config/database.js
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
