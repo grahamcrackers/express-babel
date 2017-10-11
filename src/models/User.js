@@ -3,22 +3,33 @@ import bcrypt from 'bcrypt';
 
 const SALT_WORK_FACTOR = 10;
 
-const UserSchema = new Schema({
-    username: { type: String, required: true, index: { unique: true }, maxlength: 25  },
-    email: { type: String, required: true, index: { unique: true }},
+//================================
+// User Schema
+//================================
+const UserSchema = new Schema({  
+    email: { type: String, lowercase: true, unique: true, required: true},
     password: { type: String, required: true },
-    admin: Boolean,
-    owner: Boolean,
-    dateAdded: { type: Date, default: Date.now, required: true },
-});
+    profile: {
+      firstName: { type: String },
+      lastName: { type: String }
+    },
+    role: {
+      type: String,
+      enum: ['Member', 'Client', 'Owner', 'Admin'],
+      default: 'Member'
+    },
+    resetPasswordToken: { type: String },
+    resetPasswordExpires: { type: Date }
+  }, { 
+      timestamps: true
+  }
+);
 
 UserSchema.pre('save', function(next) {
     let user = this;
     
     // only hash the password if it has been modified (or is new)
-    if (!user.isModified('password')) {
-        return next();
-    }
+    if (!user.isModified('password')) return next();
     
     // generate a salt
     bcrypt.genSalt(SALT_WORK_FACTOR, function(err, salt) {
@@ -26,10 +37,7 @@ UserSchema.pre('save', function(next) {
   
         // hash the password using our new salt
         bcrypt.hash(user.password, salt, function(err, hash) {
-            if (err) {
-                return next(err);
-            }
-  
+            if (err) return next(err);
             // override the cleartext password with the hashed one
             user.password = hash;
             next();
@@ -38,8 +46,7 @@ UserSchema.pre('save', function(next) {
 });
 
 UserSchema.methods.comparePassword = function(candidatePassword, cb){
-    let user = this;
-    bcrypt.compare(candidatePassword, user.password, (err, isMatch) => {
+    bcrypt.compare(candidatePassword, this.password, (err, isMatch) => {
         if (err) return cb(err);
         
         cb(null, isMatch);

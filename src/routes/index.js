@@ -1,30 +1,25 @@
-// index.js
-// configure routes here
-import { Router } from 'express';
-import * as UserController from '../controllers/user.controller';
-import { isAuthenticated } from '../controllers/auth.controller';
-const router = new Router();
+import { register, login } from '../controllers/auth.controller';
+import { getAllUsers, getUser } from '../controllers/user.controller';
+import express from 'express';
+import passport from '../config/passport';
 
-//let app = express();
-//let router = express.Router();
-//let userRouter = express.Router();
+// Middleware to require login/auth
+const requireAuth = passport.authenticate('jwt', {session: false});
+const requireLogin = passport.authenticate('local', {session: false});
 
-// router.use()
-// app.use('/', user);
+// Define new router
+const router = express.Router();
 
-// User auth routes
-router.route('/register').post(UserController.register);
+// Register Routes
+router.post('/register', register);
 
-router.route('/login').post(UserController.login);
+// Unprotected Route
+router.post('/user', getUser);
 
-router.route('/users').get(isAuthenticated, UserController.getAllUsers);
+// Login Route
+router.post('/login', requireLogin, login);
 
-router.route('/updateUserInfo').post(UserController.updateUserInfo);
-
-// User Routes
-router.route('/users').get(isAuthenticated, UserController.getAllUsers);
-
-router.route('/user/:id').delete(isAuthenticated, UserController.deleteUser);
-
+// Routes needed for Authorization
+router.post('/users', requireAuth, getAllUsers);
 
 export default router;

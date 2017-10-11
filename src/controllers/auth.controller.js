@@ -1,42 +1,107 @@
 //import User from '../models/User';
+import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
+import User from '../models/User';
+import config from '../config/database';
+import {setUserInfo} from '../utils/helpers';
 
-export const isAuthenticated = (req, res, next) => {
+const generateToken = (user) => {  
+    return jwt.sign(user, config.secret, {
+        expiresIn: 10080 // in seconds
+    });
+}
 
-    console.log('req: ' + JSON.stringify(req.body));
-    return next();
+//========================================
+// Login Route
+//========================================
+export const login = (req, res, next) => {    
+    let userInfo = setUserInfo(req.user);
 
-    res.redirect('/');
+    res.status(200).json({
+        token: 'Bearer ' + generateToken(userInfo),
+        user: userInfo
+    });
+}
 
-    // // Find User
-    // User.findOne({
-    //     email: req.body.email
-    // }, (err, user) => {
-    //     if (err) throw err;
+//========================================
+// Registration Route
+//========================================
+export const register = (req, res, next) => {  
+    // Check for registration errors
+    const email = req.body.email;
+    const firstName = req.body.firstName;
+    const lastName = req.body.lastName;
+    const password = req.body.password;
+  
+    // Return error if no email provided
+    if (!email) {
+        return res.status(422).send({ error: 'You must enter an email address.'});
+    }
+  
+    // Return error if full name not provided
+    if (!firstName || !lastName) {
+        return res.status(422).send({ error: 'You must enter your full name.'});
+    }
+  
+    // Return error if no password provided
+    if (!password) {
+        return res.status(422).send({ error: 'You must enter a password.' });
+    }
+    
+    User.findOne({ email: email }, function(err, existingUser) {
+        if (err) { return next(err); }
 
-    //     if(!user) {
-    //         // check to see if password matches
-    //         if (user.password != req.body.password) {
-    //             res.json({ success: false, message: 'Authentication failed. Wrong password' });
-    //         } else {
-    //             // if user is found and password is right
-    //             // create token with only our given payload
-    //             // don't pass the entire user since it contains the password
-    //             const payload = {
-    //                 admin: user.admin
-    //             };
+        // If user is not unique, return error
+        if (existingUser) {
+            return res.status(422).send({ error: 'That email address is already in use.' });
+        }
+  
+        // If email is unique and password was provided, create account
+        let user = new User({
+            email: email,
+            password: password,
+            profile: { firstName: firstName, lastName: lastName }
+        });
+  
+        user.save(function(err, user) {
+            if (err) { return next(err); }
 
-    //             let token = jwt.sign(payload, app.get('superSecret'), {
-    //                 expiresInMinuets: 1440 // expires in 24 hours
-    //             });
+            // Subscribe member to Mailchimp list
+            // mailchimp.subscribeToNewsletter(user.email);
 
-    //             // return the information including token as JSON
-    //             res.json({
-    //                 success: true,
-    //                 message: 'Enjoy your token!',
-    //                 token: token
-    //             })
-    //         }
-    //     }
-    // })
+            // Respond with JWT if user was created
 
+            let userInfo = setUserInfo(user);
+
+            res.status(201).json({
+                token: 'JWT ' + generateToken(userInfo),
+                user: userInfo
+            });
+        });
+    });
+}
+
+//========================================
+// Authorization Middleware
+//========================================
+
+// Role authorization check
+export const roleAuthorization = (role) => {  
+    return function(req, res, next) {
+        const user = req.user;
+
+        User.findById(user._id, function(err, foundUser) {
+            if (err) {
+                res.status(422).json({ error: 'No user was found.' });
+                return next(err);
+            }
+
+            // If user is found, check role.
+            if (foundUser.role == role) return next();
+
+            res.status(401).json({ error: 'You are not authorized to view this content.' });
+                return next('Unauthorized');
+            }
+        )
+    }
 }
